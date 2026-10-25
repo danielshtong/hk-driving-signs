@@ -1,0 +1,1003 @@
+<!DOCTYPE html>
+<html lang="zh-HK">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
+<title>香港路牌駕駛練習｜學車 3D 小遊戲</title>
+<style>
+  :root {
+    --bg: #0b1220;
+    --panel: rgba(12, 20, 36, 0.88);
+    --accent: #38bdf8;
+    --good: #22c55e;
+    --warn: #f59e0b;
+    --bad: #ef4444;
+    --text: #f1f5f9;
+    --muted: #94a3b8;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  html, body {
+    width: 100%; height: 100%; overflow: hidden;
+    background: var(--bg); color: var(--text);
+    font-family: "Noto Sans TC", "PingFang HK", "Microsoft JhengHei", sans-serif;
+    touch-action: none;
+  }
+  #game { display: block; width: 100%; height: 100%; }
+  #hud {
+    position: fixed; inset: 0; pointer-events: none;
+    display: flex; flex-direction: column; justify-content: space-between;
+    padding: 12px 14px 18px;
+  }
+  .topbar {
+    display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-start;
+    justify-content: space-between;
+  }
+  .card {
+    background: var(--panel); backdrop-filter: blur(10px);
+    border: 1px solid rgba(148,163,184,.25);
+    border-radius: 14px; padding: 10px 14px;
+    box-shadow: 0 8px 28px rgba(0,0,0,.35);
+  }
+  .title { font-weight: 700; font-size: 15px; letter-spacing: .02em; }
+  .sub { color: var(--muted); font-size: 12px; margin-top: 2px; }
+  .stats { display: flex; gap: 14px; font-size: 13px; }
+  .stat b { color: var(--accent); font-size: 18px; display: block; }
+  .speedometer {
+    min-width: 88px; text-align: center;
+  }
+  .speedometer .val { font-size: 28px; font-weight: 800; color: #fff; line-height: 1; }
+  .speedometer .unit { font-size: 11px; color: var(--muted); }
+  .hint-chip {
+    display: inline-flex; align-items: center; gap: 6px;
+    background: rgba(56,189,248,.15); color: #7dd3fc;
+    border: 1px solid rgba(56,189,248,.35);
+    border-radius: 999px; padding: 4px 10px; font-size: 12px;
+  }
+  .bottom {
+    display: flex; justify-content: space-between; align-items: flex-end; gap: 12px;
+  }
+  .controls-hint { font-size: 12px; color: var(--muted); max-width: 280px; line-height: 1.45; }
+  .mobile-pad {
+    pointer-events: auto; display: none; gap: 10px; align-items: center;
+  }
+  .pad-col { display: flex; flex-direction: column; gap: 8px; }
+  .pad-row { display: flex; gap: 8px; }
+  .btn {
+    width: 58px; height: 58px; border-radius: 16px;
+    border: 1px solid rgba(148,163,184,.35);
+    background: rgba(15,23,42,.75); color: #fff;
+    font-size: 20px; font-weight: 700;
+    display: flex; align-items: center; justify-content: center;
+    user-select: none; -webkit-user-select: none;
+  }
+  .btn:active, .btn.active { background: rgba(56,189,248,.35); border-color: var(--accent); }
+  @media (max-width: 900px), (pointer: coarse) {
+    .mobile-pad { display: flex; }
+    .controls-hint { display: none; }
+  }
+  #overlay {
+    position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+    background: radial-gradient(ellipse at center, rgba(8,15,30,.82), rgba(2,6,14,.94));
+    z-index: 20; padding: 18px;
+  }
+  #overlay.hidden { display: none; }
+  .panel {
+    width: min(520px, 100%);
+    background: linear-gradient(160deg, #132038, #0c1526);
+    border: 1px solid rgba(148,163,184,.28);
+    border-radius: 20px; padding: 22px 22px 18px;
+    box-shadow: 0 24px 60px rgba(0,0,0,.5);
+  }
+  .panel h1 { font-size: 22px; margin-bottom: 6px; }
+  .panel p { color: var(--muted); font-size: 14px; line-height: 1.55; margin-bottom: 12px; }
+  .signs-preview {
+    display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; margin: 12px 0 16px;
+  }
+  .sign-mini {
+    aspect-ratio: 1; border-radius: 12px;
+    background: #1e293b; display: flex; align-items: center; justify-content: center;
+    font-size: 11px; text-align: center; padding: 6px; color: #e2e8f0;
+    border: 1px solid rgba(148,163,184,.2);
+  }
+  .actions { display: flex; gap: 10px; flex-wrap: wrap; }
+  .primary, .secondary {
+    pointer-events: auto; cursor: pointer;
+    border: none; border-radius: 12px; padding: 12px 18px;
+    font-size: 15px; font-weight: 700; font-family: inherit;
+  }
+  .primary { background: linear-gradient(135deg, #0ea5e9, #2563eb); color: #fff; }
+  .secondary { background: rgba(148,163,184,.15); color: #e2e8f0; }
+  .primary:hover { filter: brightness(1.08); }
+  #quiz {
+    position: fixed; inset: 0; display: none; align-items: center; justify-content: center;
+    background: rgba(2,6,14,.72); z-index: 30; padding: 16px;
+  }
+  #quiz.show { display: flex; }
+  .quiz-box {
+    width: min(480px, 100%);
+    background: #0f1a2e; border-radius: 18px; padding: 18px;
+    border: 1px solid rgba(148,163,184,.3);
+  }
+  .quiz-sign {
+    width: 110px; height: 110px; margin: 0 auto 12px;
+    border-radius: 16px; display: flex; align-items: center; justify-content: center;
+    background: #fff; box-shadow: 0 8px 24px rgba(0,0,0,.35);
+    overflow: hidden;
+  }
+  .quiz-sign canvas { width: 100% !important; height: 100% !important; }
+  .quiz-q { font-size: 17px; font-weight: 700; text-align: center; margin-bottom: 6px; }
+  .quiz-name { text-align: center; color: var(--accent); font-size: 13px; margin-bottom: 14px; }
+  .choices { display: flex; flex-direction: column; gap: 8px; }
+  .choice {
+    pointer-events: auto; cursor: pointer; text-align: left;
+    background: rgba(30,41,59,.9); color: #f8fafc;
+    border: 1px solid rgba(148,163,184,.25);
+    border-radius: 12px; padding: 12px 14px; font-size: 14px; font-family: inherit;
+  }
+  .choice:hover { border-color: var(--accent); background: rgba(56,189,248,.12); }
+  .choice.correct { border-color: var(--good); background: rgba(34,197,94,.18); }
+  .choice.wrong { border-color: var(--bad); background: rgba(239,68,68,.18); }
+  .feedback {
+    margin-top: 12px; padding: 10px 12px; border-radius: 12px;
+    font-size: 13px; line-height: 1.5; display: none;
+  }
+  .feedback.ok { display: block; background: rgba(34,197,94,.15); color: #86efac; }
+  .feedback.bad { display: block; background: rgba(239,68,68,.15); color: #fca5a5; }
+  .toast {
+    position: fixed; top: 72px; left: 50%; transform: translateX(-50%);
+    background: rgba(15,23,42,.92); border: 1px solid rgba(148,163,184,.3);
+    padding: 10px 16px; border-radius: 999px; font-size: 13px;
+    z-index: 25; opacity: 0; transition: opacity .25s; pointer-events: none;
+    white-space: nowrap; max-width: 90vw; overflow: hidden; text-overflow: ellipsis;
+  }
+  .toast.show { opacity: 1; }
+  .toast.good { border-color: rgba(34,197,94,.5); color: #86efac; }
+  .toast.bad { border-color: rgba(239,68,68,.5); color: #fca5a5; }
+  .progress-bar {
+    height: 6px; background: rgba(148,163,184,.2); border-radius: 999px; overflow: hidden; margin-top: 8px;
+  }
+  .progress-bar > span {
+    display: block; height: 100%; width: 0%;
+    background: linear-gradient(90deg, #22c55e, #38bdf8);
+    transition: width .3s;
+  }
+</style>
+</head>
+<body>
+<canvas id="game"></canvas>
+<div id="hud">
+  <div class="topbar">
+    <div class="card">
+      <div class="title">🚗 香港路牌駕駛練習</div>
+      <div class="sub">學車／考車牌 · 認識常見交通標誌</div>
+      <div class="progress-bar"><span id="progressFill"></span></div>
+    </div>
+    <div class="card stats">
+      <div><b id="scoreVal">0</b>分數</div>
+      <div><b id="correctVal">0</b>答對</div>
+      <div><b id="missVal">0</b>錯誤</div>
+      <div class="speedometer"><div class="val" id="speedVal">0</div><div class="unit">km/h</div></div>
+    </div>
+  </div>
+  <div class="bottom">
+    <div class="card controls-hint">
+      <span class="hint-chip">操作</span><br/>
+      W／↑ 加速 · S／↓ 剎車／倒車 · A／D 或 ←／→ 轉向<br/>
+      接近路牌時會出現測驗；答對加分。
+    </div>
+    <div class="mobile-pad">
+      <div class="pad-col">
+        <button class="btn" data-key="ArrowUp">▲</button>
+        <button class="btn" data-key="ArrowDown">▼</button>
+      </div>
+      <div class="pad-row">
+        <button class="btn" data-key="ArrowLeft">◀</button>
+        <button class="btn" data-key="ArrowRight">▶</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="toast" id="toast"></div>
+
+<div id="overlay">
+  <div class="panel">
+    <h1>香港路牌 3D 駕駛練習</h1>
+    <p>喺迷你香港風格道路上駕駛，沿途會見到考車牌常見路牌。接近時回答正確做法，學習交通規則。</p>
+    <div class="signs-preview" id="signsPreview"></div>
+    <p style="font-size:12px;margin-bottom:14px">目標：完成一圈並盡量答對所有路牌測驗。適合學車／課堂練習。</p>
+    <div class="actions">
+      <button class="primary" id="startBtn">開始駕駛</button>
+      <button class="secondary" id="howtoBtn">操作說明</button>
+    </div>
+  </div>
+</div>
+
+<div id="quiz">
+  <div class="quiz-box">
+    <div class="quiz-sign" id="quizSign"></div>
+    <div class="quiz-q" id="quizQ">見到呢個路牌，你應該點做？</div>
+    <div class="quiz-name" id="quizName"></div>
+    <div class="choices" id="quizChoices"></div>
+    <div class="feedback" id="quizFeedback"></div>
+    <div class="actions" style="margin-top:12px;justify-content:flex-end;display:none" id="quizNextWrap">
+      <button class="primary" id="quizNext">繼續駕駛</button>
+    </div>
+  </div>
+</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://cdn.jsdelivr.net/npm/three@0.170.0/build/three.module.js",
+    "three/addons/": "https://cdn.jsdelivr.net/npm/three@0.170.0/examples/jsm/"
+  }
+}
+</script>
+<script type="module">
+import * as THREE from 'three';
+
+/* ========== HK Traffic Signs catalog ========== */
+const SIGNS = [
+  {
+    id: 'stop',
+    name: '停車讓行',
+    tip: '必須完全停車，睇清左右先駛過。唔可以慢慢滑過。',
+    action: 'stop',
+    question: '見到「停車讓行」牌，正確做法係？',
+    choices: ['完全停車，確認安全後再駛', '減速但唔使停', '響喇叭加速通過', '只喺有行人先停'],
+    answer: 0,
+    draw(ctx, s) {
+      ctx.clearRect(0,0,s,s);
+      ctx.fillStyle = '#fff'; ctx.fillRect(0,0,s,s);
+      const c = s/2, r = s*0.42;
+      ctx.beginPath();
+      for (let i=0;i<8;i++){
+        const a = -Math.PI/8 + i*Math.PI/4;
+        const x = c + r*Math.cos(a), y = c + r*Math.sin(a);
+        i?ctx.lineTo(x,y):ctx.moveTo(x,y);
+      }
+      ctx.closePath(); ctx.fillStyle = '#dc2626'; ctx.fill();
+      ctx.lineWidth = s*0.04; ctx.strokeStyle = '#fff'; ctx.stroke();
+      ctx.fillStyle = '#fff'; ctx.font = `bold ${s*0.22}px sans-serif`;
+      ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
+      ctx.fillText('停', c, c);
+    }
+  },
+  {
+    id: 'giveway',
+    name: '讓路',
+    tip: '倒三角「讓路」：要讓其他優先車輛／行人先過，必要時停車。',
+    action: 'slow',
+    question: '「讓路」標誌代表咩意思？',
+    choices: ['必須讓有優先權嘅車輛／行人先', '可以加速超車', '呢條路禁止駛入', '只限巴士先要讓'],
+    answer: 0,
+    draw(ctx, s) {
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2;
+      ctx.beginPath();
+      ctx.moveTo(c, s*0.12); ctx.lineTo(s*0.88, s*0.88); ctx.lineTo(s*0.12, s*0.88);
+      ctx.closePath();
+      ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.08; ctx.stroke();
+      ctx.fillStyle='#1e293b'; ctx.font=`bold ${s*0.16}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('讓路', c, s*0.68);
+    }
+  },
+  {
+    id: 'noentry',
+    name: '不准駛入',
+    tip: '圓形紅底白橫杠＝禁止由呢個方向駛入（例如單程反向）。',
+    action: 'avoid',
+    question: '見到「不准駛入」，你應該？',
+    choices: ['唔好由呢個方向駛入', '可以慢駛進入', '只限晚間禁止', '行人先唔准入'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2,r=s*0.4;
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle='#dc2626'; ctx.fill();
+      ctx.fillStyle='#fff'; ctx.fillRect(s*0.22, c-s*0.07, s*0.56, s*0.14);
+    }
+  },
+  {
+    id: 'speed50',
+    name: '車速限制 50',
+    tip: '圓形白底紅邊＋數字＝最高車速限制（公里／小時）。',
+    action: 'speed',
+    speedLimit: 50,
+    question: '呢個標誌代表？',
+    choices: ['最高車速 50 km/h', '最低車速 50 km/h', '距離下個路口 50 米', '建議車速但唔強制'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2,r=s*0.4;
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.08; ctx.stroke();
+      ctx.fillStyle='#111'; ctx.font=`bold ${s*0.36}px sans-serif`;
+      ctx.textAlign='center'; ctx.textBaseline='middle'; ctx.fillText('50', c, c+s*0.02);
+    }
+  },
+  {
+    id: 'nouturn',
+    name: '不准掉頭',
+    tip: '紅圈＋掉頭箭咀加斜杠＝禁止喺呢度掉頭。',
+    action: 'nouturn',
+    question: '「不准掉頭」牌出現時？',
+    choices: ['唔可以喺呢度掉頭', '只可以慢速掉頭', '巴士可以掉頭', '夜間先禁止'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2,r=s*0.4;
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.08; ctx.stroke();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.06; ctx.lineCap='round';
+      ctx.beginPath(); ctx.arc(c, c+s*0.05, s*0.18, Math.PI*0.15, Math.PI*1.85);
+      ctx.stroke();
+      // arrow head
+      ctx.beginPath();
+      ctx.moveTo(c+s*0.16, c-s*0.08); ctx.lineTo(c+s*0.28, c-s*0.02); ctx.lineTo(c+s*0.18, c+s*0.08);
+      ctx.fillStyle='#111'; ctx.fill();
+      // red slash
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.07;
+      ctx.beginPath(); ctx.moveTo(s*0.22,s*0.78); ctx.lineTo(s*0.78,s*0.22); ctx.stroke();
+    }
+  },
+  {
+    id: 'oneway',
+    name: '單程路',
+    tip: '藍色箭咀標誌通常表示單程行駛方向，要跟箭咀方向行駛。',
+    action: 'follow',
+    question: '見到藍色單程箭咀，應該？',
+    choices: ['只可以跟箭咀方向行駛', '可以雙向行駛', '行人專用', '只限電單車'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s);
+      ctx.fillStyle='#1d4ed8'; ctx.fillRect(0,0,s,s);
+      ctx.fillStyle='#fff';
+      ctx.beginPath();
+      ctx.moveTo(s*0.2, s*0.55); ctx.lineTo(s*0.55, s*0.55); ctx.lineTo(s*0.55, s*0.7);
+      ctx.lineTo(s*0.82, s*0.45); ctx.lineTo(s*0.55, s*0.2); ctx.lineTo(s*0.55, s*0.35);
+      ctx.lineTo(s*0.2, s*0.35); ctx.closePath(); ctx.fill();
+    }
+  },
+  {
+    id: 'crossing',
+    name: '行人過路處',
+    tip: '見到斑馬線／行人過路標誌，要減速並讓行人先過。',
+    action: 'yield_ped',
+    question: '接近行人過路處，正確做法？',
+    choices: ['減速，準備讓行人先行', '加速趕過斑馬線', '響喇叭迫行人讓路', '只喺綠燈先要讓'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#1d4ed8'; ctx.fillRect(0,0,s,s);
+      ctx.fillStyle='#fff';
+      // person
+      ctx.beginPath(); ctx.arc(s*0.42, s*0.28, s*0.08, 0, Math.PI*2); ctx.fill();
+      ctx.fillRect(s*0.36, s*0.38, s*0.12, s*0.28);
+      ctx.fillRect(s*0.28, s*0.42, s*0.08, s*0.18);
+      ctx.fillRect(s*0.48, s*0.42, s*0.16, s*0.08);
+      ctx.fillRect(s*0.34, s*0.66, s*0.07, s*0.18);
+      ctx.fillRect(s*0.44, s*0.66, s*0.07, s*0.18);
+      // stripes hint
+      ctx.fillRect(s*0.68, s*0.55, s*0.08, s*0.28);
+      ctx.fillRect(s*0.80, s*0.55, s*0.08, s*0.28);
+    }
+  },
+  {
+    id: 'school',
+    name: '小心兒童／學校區域',
+    tip: '學校／兒童警告牌：要特別減速，留意突然衝出馬路嘅小朋友。',
+    action: 'school',
+    question: '學校區域警告牌提醒你？',
+    choices: ['減速並特別留意兒童', '可以照常高速通過', '只限上課時間先有效', '禁止任何車輛駛入'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2;
+      ctx.beginPath();
+      ctx.moveTo(c, s*0.1); ctx.lineTo(s*0.9, s*0.85); ctx.lineTo(s*0.1, s*0.85);
+      ctx.closePath();
+      ctx.fillStyle='#f59e0b'; ctx.fill();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.04; ctx.stroke();
+      ctx.fillStyle='#111';
+      ctx.beginPath(); ctx.arc(s*0.38, s*0.48, s*0.06,0,Math.PI*2); ctx.fill();
+      ctx.beginPath(); ctx.arc(s*0.58, s*0.45, s*0.055,0,Math.PI*2); ctx.fill();
+      ctx.fillRect(s*0.32, s*0.55, s*0.12, s*0.18);
+      ctx.fillRect(s*0.52, s*0.52, s*0.11, s*0.18);
+    }
+  },
+  {
+    id: 'noovertake',
+    name: '不准超車',
+    tip: '兩車圖加紅斜杠＝禁止超車。保持安全車距，跟住前面車輛。',
+    action: 'noovertake',
+    question: '「不准超車」標誌意思係？',
+    choices: ['禁止超越前面車輛', '必須超車', '只禁電單車超車', '可以超車但唔好響喇叭'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2,r=s*0.4;
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.08; ctx.stroke();
+      // two cars
+      ctx.fillStyle='#111';
+      ctx.fillRect(s*0.28, s*0.42, s*0.22, s*0.14);
+      ctx.fillRect(s*0.50, s*0.48, s*0.22, s*0.14);
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.07;
+      ctx.beginPath(); ctx.moveTo(s*0.22,s*0.78); ctx.lineTo(s*0.78,s*0.22); ctx.stroke();
+    }
+  },
+  {
+    id: 'noleft',
+    name: '不准左轉',
+    tip: '紅圈＋左轉箭加斜杠＝禁止左轉，要直行或跟其他准許方向。',
+    action: 'noleft',
+    question: '見到「不准左轉」應該？',
+    choices: ['唔好喺呢個路口左轉', '必須左轉', '可以轉但要好慢', '只限貨車禁止'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2,r=s*0.4;
+      ctx.beginPath(); ctx.arc(c,c,r,0,Math.PI*2); ctx.fillStyle='#fff'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.08; ctx.stroke();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.07; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(c+s*0.12, c+s*0.18); ctx.lineTo(c+s*0.12, c-s*0.05);
+      ctx.quadraticCurveTo(c+s*0.12, c-s*0.2, c-s*0.05, c-s*0.2);
+      ctx.lineTo(c-s*0.18, c-s*0.2); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(c-s*0.08, c-s*0.3); ctx.lineTo(c-s*0.22, c-s*0.2); ctx.lineTo(c-s*0.08, c-s*0.1);
+      ctx.fillStyle='#111'; ctx.fill();
+      ctx.strokeStyle='#dc2626'; ctx.lineWidth=s*0.07;
+      ctx.beginPath(); ctx.moveTo(s*0.22,s*0.78); ctx.lineTo(s*0.78,s*0.22); ctx.stroke();
+    }
+  },
+  {
+    id: 'trafficlight',
+    name: '前面有交通燈',
+    tip: '警告前面有燈號控制路口：預早減速，預備停車。紅燈停、綠燈先行。',
+    action: 'lights',
+    question: '接近交通燈時，基本規則係？',
+    choices: ['紅燈停、綠燈行，黃燈應準備停', '黃燈一定要加速衝過', '紅燈可以右轉', '綠燈閃就可以唔睇'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2;
+      ctx.beginPath();
+      ctx.moveTo(c, s*0.1); ctx.lineTo(s*0.9, s*0.85); ctx.lineTo(s*0.1, s*0.85);
+      ctx.closePath();
+      ctx.fillStyle='#f59e0b'; ctx.fill();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.04; ctx.stroke();
+      ctx.fillStyle='#111'; ctx.fillRect(c-s*0.08, s*0.38, s*0.16, s*0.36);
+      ctx.beginPath(); ctx.arc(c, s*0.46, s*0.045,0,Math.PI*2); ctx.fillStyle='#ef4444'; ctx.fill();
+      ctx.beginPath(); ctx.arc(c, s*0.56, s*0.045,0,Math.PI*2); ctx.fillStyle='#fbbf24'; ctx.fill();
+      ctx.beginPath(); ctx.arc(c, s*0.66, s*0.045,0,Math.PI*2); ctx.fillStyle='#22c55e'; ctx.fill();
+    }
+  },
+  {
+    id: 'roundabout',
+    name: '前面有迴旋處',
+    tip: '迴旋處要讓圈內車輛，順時針（香港右駕車）駛入，跟車道箭咀離開。',
+    action: 'roundabout',
+    question: '駛入迴旋處嘅正確做法？',
+    choices: ['讓已在迴旋處內嘅車輛，跟方向行駛', '直衝唔使讓', '逆時針行駛', '可以停喺迴旋處中間'],
+    answer: 0,
+    draw(ctx,s){
+      ctx.clearRect(0,0,s,s); ctx.fillStyle='#fff'; ctx.fillRect(0,0,s,s);
+      const c=s/2;
+      ctx.beginPath();
+      ctx.moveTo(c, s*0.1); ctx.lineTo(s*0.9, s*0.85); ctx.lineTo(s*0.1, s*0.85);
+      ctx.closePath();
+      ctx.fillStyle='#f59e0b'; ctx.fill();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.04; ctx.stroke();
+      ctx.strokeStyle='#111'; ctx.lineWidth=s*0.05;
+      ctx.beginPath(); ctx.arc(c, s*0.55, s*0.14, 0.2, Math.PI*1.8); ctx.stroke();
+      ctx.beginPath();
+      ctx.moveTo(c+s*0.12, s*0.42); ctx.lineTo(c+s*0.2, s*0.52); ctx.lineTo(c+s*0.08, s*0.52);
+      ctx.fillStyle='#111'; ctx.fill();
+    }
+  }
+];
+
+function makeSignTexture(sign, size=128) {
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  sign.draw(canvas.getContext('2d'), size);
+  const tex = new THREE.CanvasTexture(canvas);
+  tex.colorSpace = THREE.SRGBColorSpace;
+  return tex;
+}
+
+function makeSignMesh(sign) {
+  const group = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.06, 0.08, 3.2, 8),
+    new THREE.MeshStandardMaterial({ color: 0x94a3b8, metalness: 0.6, roughness: 0.4 })
+  );
+  pole.position.y = 1.6;
+  group.add(pole);
+
+  const tex = makeSignTexture(sign, 256);
+  const board = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 1.4),
+    new THREE.MeshStandardMaterial({ map: tex, roughness: 0.55, metalness: 0.05, side: THREE.DoubleSide })
+  );
+  board.position.y = 3.3;
+  group.add(board);
+
+  const back = new THREE.Mesh(
+    new THREE.PlaneGeometry(1.4, 1.4),
+    new THREE.MeshStandardMaterial({ color: 0xcbd5e1, roughness: 0.8 })
+  );
+  back.position.y = 3.3;
+  back.rotation.y = Math.PI;
+  group.add(back);
+
+  group.userData.sign = sign;
+  group.userData.triggered = false;
+  return group;
+}
+
+/* ========== Scene setup ========== */
+const canvas = document.getElementById('game');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.setSize(innerWidth, innerHeight);
+renderer.shadowMap.enabled = true;
+renderer.outputColorSpace = THREE.SRGBColorSpace;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x87b5d9);
+scene.fog = new THREE.Fog(0x87b5d9, 40, 120);
+
+const camera = new THREE.PerspectiveCamera(60, innerWidth/innerHeight, 0.1, 200);
+camera.position.set(0, 8, 12);
+
+const hemi = new THREE.HemisphereLight(0xbcd9ff, 0x3d4a3a, 1.05);
+scene.add(hemi);
+const sun = new THREE.DirectionalLight(0xfff2d6, 1.35);
+sun.position.set(30, 50, 20);
+sun.castShadow = true;
+sun.shadow.mapSize.set(2048, 2048);
+sun.shadow.camera.left = -60; sun.shadow.camera.right = 60;
+sun.shadow.camera.top = 60; sun.shadow.camera.bottom = -60;
+scene.add(sun);
+
+/* Ground & city blocks */
+const ground = new THREE.Mesh(
+  new THREE.PlaneGeometry(200, 200),
+  new THREE.MeshStandardMaterial({ color: 0x3d7a4a, roughness: 1 })
+);
+ground.rotation.x = -Math.PI/2;
+ground.receiveShadow = true;
+scene.add(ground);
+
+function addBuilding(x, z, w, d, h, color) {
+  const m = new THREE.Mesh(
+    new THREE.BoxGeometry(w, h, d),
+    new THREE.MeshStandardMaterial({ color, roughness: 0.85 })
+  );
+  m.position.set(x, h/2, z);
+  m.castShadow = true; m.receiveShadow = true;
+  scene.add(m);
+}
+const bcols = [0xcbd5e1, 0x94a3b8, 0xf1f5f9, 0xe2e8f0, 0xa8c0d8];
+for (let i=0;i<40;i++){
+  const ang = Math.random()*Math.PI*2;
+  const rad = 28 + Math.random()*50;
+  const x = Math.cos(ang)*rad, z = Math.sin(ang)*rad;
+  if (Math.abs(x)<18 && Math.abs(z)<18) continue;
+  addBuilding(x, z, 3+Math.random()*5, 3+Math.random()*5, 4+Math.random()*16, bcols[i%bcols.length]);
+}
+
+/* Road: rectangular loop with rounded-ish corners via segments */
+const ROAD_W = 8;
+const roadMat = new THREE.MeshStandardMaterial({ color: 0x2a2f38, roughness: 0.92 });
+const lineMat = new THREE.MeshBasicMaterial({ color: 0xf8fafc });
+const yellowMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24 });
+
+function addRoadSegment(x1,z1,x2,z2) {
+  const dx = x2-x1, dz = z2-z1;
+  const len = Math.hypot(dx,dz);
+  const mesh = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W, len+0.2), roadMat);
+  mesh.rotation.x = -Math.PI/2;
+  mesh.position.set((x1+x2)/2, 0.02, (z1+z2)/2);
+  mesh.rotation.z = -Math.atan2(dx, dz);
+  mesh.receiveShadow = true;
+  scene.add(mesh);
+
+  // center dashed line
+  const dashes = Math.floor(len / 3);
+  for (let i=0;i<dashes;i++){
+    if (i%2===0) continue;
+    const t0 = (i+0.2)/dashes, t1 = (i+0.8)/dashes;
+    const sx = x1 + dx*t0, sz = z1 + dz*t0;
+    const ex = x1 + dx*t1, ez = z1 + dz*t1;
+    const dl = Math.hypot(ex-sx, ez-sz);
+    const line = new THREE.Mesh(new THREE.PlaneGeometry(0.15, dl), lineMat);
+    line.rotation.x = -Math.PI/2;
+    line.position.set((sx+ex)/2, 0.04, (sz+ez)/2);
+    line.rotation.z = -Math.atan2(ex-sx, ez-sz);
+    scene.add(line);
+  }
+}
+
+// Outer loop path waypoints (driving centerline)
+const PATH = [
+  new THREE.Vector3(0, 0, -30),
+  new THREE.Vector3(30, 0, -30),
+  new THREE.Vector3(30, 0, 0),
+  new THREE.Vector3(30, 0, 30),
+  new THREE.Vector3(0, 0, 30),
+  new THREE.Vector3(-30, 0, 30),
+  new THREE.Vector3(-30, 0, 0),
+  new THREE.Vector3(-30, 0, -30),
+  new THREE.Vector3(0, 0, -30),
+];
+
+for (let i=0;i<PATH.length-1;i++){
+  addRoadSegment(PATH[i].x, PATH[i].z, PATH[i+1].x, PATH[i+1].z);
+}
+// corner pads
+function addJunction(x,z){
+  const j = new THREE.Mesh(new THREE.PlaneGeometry(ROAD_W+0.5, ROAD_W+0.5), roadMat);
+  j.rotation.x = -Math.PI/2; j.position.set(x, 0.015, z); j.receiveShadow = true;
+  scene.add(j);
+}
+[[30,-30],[30,30],[-30,30],[-30,-30],[30,0],[-30,0],[0,30],[0,-30]].forEach(([x,z])=>addJunction(x,z));
+
+// zebra crossing near one sign
+function addZebra(x, z, rot=0) {
+  const g = new THREE.Group();
+  for (let i=0;i<6;i++){
+    const stripe = new THREE.Mesh(new THREE.PlaneGeometry(0.5, ROAD_W*0.85), lineMat);
+    stripe.rotation.x = -Math.PI/2;
+    stripe.position.set(-2.5 + i*1, 0.05, 0);
+    g.add(stripe);
+  }
+  g.position.set(x,0,z); g.rotation.y = rot;
+  scene.add(g);
+}
+addZebra(0, -30, 0);
+addZebra(30, 10, Math.PI/2);
+
+/* Place signs along route */
+const signPlacements = [
+  { id:'stop', x: 22, z: -33.5, rot: 0 },
+  { id:'giveway', x: 33.5, z: -18, rot: -Math.PI/2 },
+  { id:'speed50', x: 33.5, z: 8, rot: -Math.PI/2 },
+  { id:'crossing', x: 33.5, z: 18, rot: -Math.PI/2 },
+  { id:'school', x: 18, z: 33.5, rot: Math.PI },
+  { id:'noovertake', x: -8, z: 33.5, rot: Math.PI },
+  { id:'nouturn', x: -33.5, z: 18, rot: Math.PI/2 },
+  { id:'noleft', x: -33.5, z: -8, rot: Math.PI/2 },
+  { id:'oneway', x: -18, z: -33.5, rot: 0 },
+  { id:'noentry', x: -8, z: -33.5, rot: 0 },
+  { id:'trafficlight', x: 8, z: -33.5, rot: 0 },
+  { id:'roundabout', x: 33.5, z: -8, rot: -Math.PI/2 },
+];
+
+const signMeshes = [];
+signPlacements.forEach(p => {
+  const def = SIGNS.find(s => s.id === p.id);
+  if (!def) return;
+  const mesh = makeSignMesh(def);
+  mesh.position.set(p.x, 0, p.z);
+  mesh.rotation.y = p.rot;
+  scene.add(mesh);
+  signMeshes.push(mesh);
+});
+
+/* Traffic light prop at one corner */
+function makeTrafficLight() {
+  const g = new THREE.Group();
+  const pole = new THREE.Mesh(
+    new THREE.CylinderGeometry(0.08,0.1,4,8),
+    new THREE.MeshStandardMaterial({ color: 0x64748b, metalness:0.5 })
+  );
+  pole.position.y = 2; g.add(pole);
+  const box = new THREE.Mesh(
+    new THREE.BoxGeometry(0.45, 1.2, 0.35),
+    new THREE.MeshStandardMaterial({ color: 0x1e293b })
+  );
+  box.position.y = 4.2; g.add(box);
+  const colors = [0xef4444, 0xfbbf24, 0x22c55e];
+  colors.forEach((c,i)=>{
+    const l = new THREE.Mesh(
+      new THREE.CircleGeometry(0.12, 16),
+      new THREE.MeshBasicMaterial({ color: c })
+    );
+    l.position.set(0, 4.55 - i*0.35, 0.18); g.add(l);
+  });
+  return g;
+}
+const tl = makeTrafficLight();
+tl.position.set(26, 0, -26);
+scene.add(tl);
+
+/* Car */
+function makeCar() {
+  const g = new THREE.Group();
+  const bodyMat = new THREE.MeshStandardMaterial({ color: 0xef4444, metalness: 0.35, roughness: 0.45 });
+  const dark = new THREE.MeshStandardMaterial({ color: 0x0f172a, roughness: 0.6 });
+  const glass = new THREE.MeshStandardMaterial({ color: 0x7dd3fc, transparent: true, opacity: 0.55, metalness: 0.2 });
+
+  const body = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.55, 3.2), bodyMat);
+  body.position.y = 0.55; body.castShadow = true; g.add(body);
+  const cabin = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.5, 1.6), glass);
+  cabin.position.set(0, 1.05, -0.15); cabin.castShadow = true; g.add(cabin);
+  const roof = new THREE.Mesh(new THREE.BoxGeometry(1.35, 0.12, 1.5), bodyMat);
+  roof.position.set(0, 1.3, -0.15); g.add(roof);
+
+  [[-0.7,0.28,1.0],[0.7,0.28,1.0],[-0.7,0.28,-1.0],[0.7,0.28,-1.0]].forEach(([x,y,z])=>{
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.32,0.32,0.28,12), dark);
+    w.rotation.z = Math.PI/2; w.position.set(x,y,z); w.castShadow = true; g.add(w);
+  });
+
+  // headlights
+  const hl = new THREE.Mesh(new THREE.BoxGeometry(0.25,0.15,0.1), new THREE.MeshBasicMaterial({color:0xfef9c3}));
+  hl.position.set(-0.45, 0.55, 1.62); g.add(hl);
+  const hr = hl.clone(); hr.position.x = 0.45; g.add(hr);
+
+  g.position.set(0, 0, -30);
+  g.rotation.y = Math.PI/2; // face +X initially along first segment? path goes to +X from (0,-30)
+  // Actually PATH[0]=(0,-30) to PATH[1]=(30,-30), so facing +X means rotation.y = -PI/2 for Three.js default forward -Z
+  // Default car forward is +Z in our model (headlights at +z). We want +X direction: rot.y = -PI/2? 
+  // In Three.js, positive rotation.y turns left (CCW). Object default looks down -Z.
+  // To look +X: rotate Y by -PI/2.
+  g.rotation.y = Math.PI/2; // face +X along first road segment
+  return g;
+}
+const car = makeCar();
+scene.add(car);
+
+/* ========== Controls ========== */
+const keys = {};
+window.addEventListener('keydown', e => { keys[e.code] = true; if (['ArrowUp','ArrowDown','ArrowLeft','ArrowRight','Space'].includes(e.code)) e.preventDefault(); });
+window.addEventListener('keyup', e => { keys[e.code] = false; });
+
+document.querySelectorAll('.btn').forEach(btn => {
+  const code = btn.dataset.key === 'ArrowUp' ? 'ArrowUp'
+    : btn.dataset.key === 'ArrowDown' ? 'ArrowDown'
+    : btn.dataset.key === 'ArrowLeft' ? 'ArrowLeft' : 'ArrowRight';
+  const on = e => { e.preventDefault(); keys[code] = true; btn.classList.add('active'); };
+  const off = e => { e.preventDefault(); keys[code] = false; btn.classList.remove('active'); };
+  btn.addEventListener('pointerdown', on);
+  btn.addEventListener('pointerup', off);
+  btn.addEventListener('pointerleave', off);
+  btn.addEventListener('pointercancel', off);
+});
+
+let speed = 0; // m/s internal
+const MAX_SPEED = 22; // ~80 km/h display scale
+const ACCEL = 12;
+const BRAKE = 18;
+const FRICTION = 4;
+const TURN_SPEED = 1.8;
+
+let playing = false;
+let quizOpen = false;
+let score = 0, correct = 0, misses = 0;
+let answered = new Set();
+
+const scoreEl = document.getElementById('scoreVal');
+const correctEl = document.getElementById('correctVal');
+const missEl = document.getElementById('missVal');
+const speedEl = document.getElementById('speedVal');
+const progressFill = document.getElementById('progressFill');
+const toast = document.getElementById('toast');
+
+function updateHud() {
+  scoreEl.textContent = score;
+  correctEl.textContent = correct;
+  missEl.textContent = misses;
+  const kmh = Math.max(0, Math.round(speed * 3.6 * 1.6)); // scaled feel
+  speedEl.textContent = kmh;
+  const pct = Math.min(100, (answered.size / SIGNS.length) * 100);
+  progressFill.style.width = pct + '%';
+}
+
+function showToast(msg, type='') {
+  toast.textContent = msg;
+  toast.className = 'toast show ' + type;
+  clearTimeout(showToast._t);
+  showToast._t = setTimeout(() => toast.classList.remove('show'), 2200);
+}
+
+/* Quiz UI */
+const quizEl = document.getElementById('quiz');
+const quizSign = document.getElementById('quizSign');
+const quizQ = document.getElementById('quizQ');
+const quizName = document.getElementById('quizName');
+const quizChoices = document.getElementById('quizChoices');
+const quizFeedback = document.getElementById('quizFeedback');
+const quizNextWrap = document.getElementById('quizNextWrap');
+const quizNext = document.getElementById('quizNext');
+
+let currentQuiz = null;
+
+function openQuiz(sign) {
+  if (quizOpen || answered.has(sign.id)) return;
+  quizOpen = true;
+  currentQuiz = sign;
+  speed = Math.min(speed, 2);
+
+  const c = document.createElement('canvas');
+  c.width = c.height = 220;
+  sign.draw(c.getContext('2d'), 220);
+  quizSign.innerHTML = '';
+  quizSign.appendChild(c);
+
+  quizQ.textContent = sign.question;
+  quizName.textContent = '路牌：' + sign.name;
+  quizFeedback.className = 'feedback';
+  quizFeedback.textContent = '';
+  quizNextWrap.style.display = 'none';
+  quizChoices.innerHTML = '';
+
+  sign.choices.forEach((text, i) => {
+    const b = document.createElement('button');
+    b.className = 'choice';
+    b.textContent = (i+1) + '. ' + text;
+    b.addEventListener('click', () => answerQuiz(i, b));
+    quizChoices.appendChild(b);
+  });
+  quizEl.classList.add('show');
+}
+
+function answerQuiz(idx, btn) {
+  if (!currentQuiz || answered.has(currentQuiz.id)) return;
+  const sign = currentQuiz;
+  const ok = idx === sign.answer;
+  [...quizChoices.children].forEach((el, i) => {
+    el.disabled = true;
+    if (i === sign.answer) el.classList.add('correct');
+    if (i === idx && !ok) el.classList.add('wrong');
+  });
+  answered.add(sign.id);
+  if (ok) {
+    correct++; score += 10;
+    quizFeedback.className = 'feedback ok';
+    quizFeedback.textContent = '✅ 正確！' + sign.tip;
+    showToast('答對 +10：' + sign.name, 'good');
+  } else {
+    misses++; score = Math.max(0, score - 3);
+    quizFeedback.className = 'feedback bad';
+    quizFeedback.textContent = '❌ 唔啱。' + sign.tip;
+    showToast('錯誤：睇下提示再記住', 'bad');
+  }
+  updateHud();
+  quizNextWrap.style.display = 'flex';
+}
+
+quizNext.addEventListener('click', () => {
+  quizEl.classList.remove('show');
+  quizOpen = false;
+  currentQuiz = null;
+  if (answered.size >= SIGNS.length) {
+    setTimeout(() => endGame(), 400);
+  }
+});
+
+function endGame() {
+  playing = false;
+  const overlay = document.getElementById('overlay');
+  overlay.classList.remove('hidden');
+  overlay.querySelector('.panel').innerHTML = `
+    <h1>完成一輪路牌練習！</h1>
+    <p>分數 <b style="color:#38bdf8;font-size:22px">${score}</b>　
+       答對 ${correct}　錯誤 ${misses}</p>
+    <p style="font-size:13px">記住：停車讓行要完全停；讓路要讓優先車輛；行人過路處要減速讓行人；跟交通燈同車速限制行駛。</p>
+    <div class="actions">
+      <button class="primary" id="restartBtn">再練習一次</button>
+    </div>`;
+  document.getElementById('restartBtn').onclick = () => location.reload();
+}
+
+/* Start screen preview */
+const preview = document.getElementById('signsPreview');
+SIGNS.slice(0,8).forEach(s => {
+  const d = document.createElement('div');
+  d.className = 'sign-mini';
+  const c = document.createElement('canvas');
+  c.width = c.height = 64;
+  s.draw(c.getContext('2d'), 64);
+  c.style.width = '100%'; c.style.height = 'auto'; c.style.borderRadius = '8px';
+  d.appendChild(c);
+  preview.appendChild(d);
+});
+
+document.getElementById('startBtn').onclick = () => {
+  document.getElementById('overlay').classList.add('hidden');
+  playing = true;
+  showToast('出發！沿路留意路牌');
+};
+document.getElementById('howtoBtn').onclick = () => {
+  alert('鍵盤：W／↑ 加速，S／↓ 剎車／倒車，A／D 或 ←／→ 轉向。\n手機：用右下角按鈕。\n接近路牌會自動測驗，答完繼續駕駛。');
+};
+
+/* ========== Physics / loop ========== */
+const clock = new THREE.Clock();
+const camOffset = new THREE.Vector3(0, 6.5, 11);
+const camLook = new THREE.Vector3();
+const tmp = new THREE.Vector3();
+
+function onRoadApprox(x, z) {
+  // soft bounds: keep near the rectangular loop corridor
+  const onH = (Math.abs(Math.abs(z) - 30) < ROAD_W*0.7 && Math.abs(x) <= 34);
+  const onV = (Math.abs(Math.abs(x) - 30) < ROAD_W*0.7 && Math.abs(z) <= 34);
+  return onH || onV;
+}
+
+function animate() {
+  requestAnimationFrame(animate);
+  const dt = Math.min(0.05, clock.getDelta());
+
+  if (playing && !quizOpen) {
+    const forward = (keys['KeyW'] || keys['ArrowUp']) ? 1 : 0;
+    const back = (keys['KeyS'] || keys['ArrowDown']) ? 1 : 0;
+    const left = (keys['KeyA'] || keys['ArrowLeft']) ? 1 : 0;
+    const right = (keys['KeyD'] || keys['ArrowRight']) ? 1 : 0;
+
+    if (forward) speed += ACCEL * dt;
+    if (back) {
+      if (speed > 0.5) speed -= BRAKE * dt;
+      else speed -= ACCEL * 0.6 * dt;
+    }
+    if (!forward && !back) {
+      if (speed > 0) speed = Math.max(0, speed - FRICTION * dt);
+      if (speed < 0) speed = Math.min(0, speed + FRICTION * dt);
+    }
+    speed = Math.max(-6, Math.min(MAX_SPEED, speed));
+
+    const turn = (left - right) * TURN_SPEED * (Math.min(1, Math.abs(speed)/8) + (Math.abs(speed)>0.2?0.15:0));
+    if (Math.abs(speed) > 0.15) car.rotation.y += turn * Math.sign(speed) * dt;
+
+    const dir = new THREE.Vector3(Math.sin(car.rotation.y), 0, Math.cos(car.rotation.y));
+    // Our car model faces +Z at rot=0, but Three default look is -Z... 
+    // We used headlights at +Z, so forward vector should be +Z at rot.y=0:
+    // Actually Mesh default; rotation.y rotates around Y: local +Z goes to (sin(y), 0, cos(y)) — wait
+    // In Three.js: after rotation.y = θ, local +Z maps to (sin θ, 0, cos θ). Yes.
+    car.position.addScaledVector(dir, speed * dt);
+
+    // soft world clamp
+    car.position.x = THREE.MathUtils.clamp(car.position.x, -55, 55);
+    car.position.z = THREE.MathUtils.clamp(car.position.z, -55, 55);
+
+    // off-road friction
+    if (!onRoadApprox(car.position.x, car.position.z)) {
+      speed *= (1 - 1.5*dt);
+      if (Math.random()<0.02) showToast('駛回路面，小心！', 'bad');
+    }
+
+    // approach signs
+    for (const m of signMeshes) {
+      if (m.userData.triggered) continue;
+      const d = car.position.distanceTo(m.position);
+      if (d < 7.5) {
+        m.userData.triggered = true;
+        openQuiz(m.userData.sign);
+        break;
+      }
+    }
+  }
+
+  // camera follow
+  const backDir = new THREE.Vector3(Math.sin(car.rotation.y), 0, Math.cos(car.rotation.y));
+  tmp.copy(car.position).addScaledVector(backDir, -10).add(new THREE.Vector3(0, 6.2, 0));
+  camera.position.lerp(tmp, 1 - Math.pow(0.001, dt));
+  camLook.copy(car.position).add(new THREE.Vector3(0, 1.2, 0)).addScaledVector(backDir, 4);
+  camera.lookAt(camLook);
+
+  updateHud();
+  renderer.render(scene, camera);
+}
+animate();
+
+window.addEventListener('resize', () => {
+  camera.aspect = innerWidth/innerHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(innerWidth, innerHeight);
+});
+</script>
+</body>
+</html>
